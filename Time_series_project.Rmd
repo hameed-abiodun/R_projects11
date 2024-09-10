@@ -1,0 +1,210 @@
+---
+title: "Time Series Analysis"
+author: "Hameed Jimoh"
+date: "2017-11-25"
+output:
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Abstract
+
+
+# 1.0 Introduction
+A time series is a sequence of observations in progressive time order. 
+
+
+# Definitions
+A series $\{X_{t1},X_{t2},...X_{tn}\}$ is Strictly stationary if $\{X_{t1},X_{t2},...X_{tn}\}$ has the same distribution as $\{X_{t1+h},X_{t2+h},...X_{tn+h}\}$.
+
+
+
+Let ${X_t }$ be a time series with $E[X_{t}] < \infty$. 
+
+* The mean function of ${X_t}$ is $\mu_{X(t)} = E[X_t]$.
+* The covariance function of $X_t$ is $γ{X(r, s)} = Cov(X_r,X_s) = E[(X_r − μ_{X(r)})(X_s − μ_{X(s)})]$, for all integers r and s.
+
+
+Let {Xt } be a stationary time series. The autocovariance function (ACVF) of
+$X_t$ at lag $h$ is $γX(h) = Cov(Xt+h,Xt )$. The autocorrelation function (ACF) of $X_t$ at lag $h$ is $ρX(h) = γX(h)$, $γX(0)= Cor(X_{t+h},X_t )$.
+
+
+If $X_{t}$ is strictly stationary, $E[X_{t}]= constant$ in $t$ and $ Cov(X_{t},X_{t+h})=constant$ in $t$.
+
+A series {$X_{t}$} is called weak Stationary if
+
+* $E[X_{t}]$ does not depend on t
+* $Cov(X_{t},X_{t+h})$ does not depend on $t$. (for all h)
+
+# Estimating and Eliminating Trend and Seasonal component.
+To analyze time series data, we need to first plot the data. If there is any discontinuity in such a series, we break the series and analyze it piecewise. Then, we check for outliers by examining carefully whether there is any justification for discarding them. One possible method of representing the data is a classical decomposition model. $X_t = M_t + S_t + Z_t$ where $M_t$ represent the trend in the series S_t is the seasonal component with a known period and $Z_t$ is the noise component.
+Our aim in time series is to compute and isolate the deterministic components. $M_t$ and $S_t$ with the intention that the noise component $Z_t$ becomes a stationary time series. Then, we can find a satisfactory probabilistic model for $Z_t$ to compare the correlation structure and use it with M_t and S_t for prediction.
+
+Box and Jenkins established another method. In their process, they suggest applying differencing operators repeatedly to the series $X_t$ until resulting series $W_t$ becomes stationary, we can find a probabilistic model to explain its correlation Structure. This model can be used for the prediction of $W_t$ and hence the original series.
+
+
+# 2.0 Methodology
+
+DIFFERENCING
+
+We define the lag-d difference operator $\nabla$ by $\nabla = X_{t} - X_{t-d} = (1 - B^{d})X_{t}$ where $B$ is the backward Shift operator.
+
+Applying this operator  to the model $X_{t} = M_{t} + S_{t} + Z_{t}$ where $S_{t}$ has a period of d, we get; $X_{t} = M_{t}-M_{t-d} + Z_{t} - Z_{t-d}$
+
+$∇dXt = Xt − Xt−d = (1 − Bd)Xt$.
+
+Trend and/or seasonal components are removed by repeatedly differencing the data at one or more lag in order to generate a noise sequence.
+
+
+
+#3.0 Example
+
+`````{r results='hide', echo = FALSE}
+require(forecast)
+require(MASS)
+library("randtests")
+`````
+The data comes from Wisconsin employment trade between January 1961 and October 1975. The data were divided into 2 groups. The first 166 data will be used to build the model, and the last 12 data will be used for the validation set to check how good the model can be if used to forecast future data.
+The test data are plotted in a time series to check for trends or a seasonal component or to check the variance of the residue. 
+````{r echo = FALSE}
+# Reading data from the source and performing some transformation on the data.
+full = ts(scan("wisconsin-employment-time-series.txt")[(167:178)], start=c(1974, 11), frequency=12)
+xt = ts(scan("wisconsin-employment-time-series.txt")[-(167:178)], start=c(1961, 1), frequency=12)
+````
+The test data are plot in time series plot to check if there are trends, seasonal component or check the variance of the residue.
+`````{r echo = FALSE}
+plot(xt)
+`````
+
+Next we plot the ACF and PACF graph of the data 
+`````{r echo = FALSE}
+par(mfrow=c(1,2))
+## Viewing acf and pacf of raw data
+acf(xt, lag.max=40)
+pacf(xt, lag.max=40)
+`````
+
+The data needs to be transformed, so we use BoxCox transformation. To use BoxCox, we need to find the best lambda that will optimize the data, so we plot the graph, obtain the optimal lambda, and use it to transform the data.
+
+````{r echo = FALSE}
+## Box Cox transformation
+bc=boxcox(xt~1)
+lam=bc$x[which.max(bc$y)]
+## Apply Box Cox transformation on data 
+xt=BoxCox(xt, lam)
+f1=BoxCox(full, lam)
+````
+
+The plot shows some seasonal characters with a frequency of 12; thus, we take the difference in the data at lag 12 and plot the 
+````{r echo = FALSE}
+## Difference the series at lag 12 since there is a seasonal pattern with period =12
+yt = diff(xt, lag=12)
+plot(yt)
+par(mfrow=c(1,2))
+acf(yt, lag.max=40)
+pacf(yt, lag.max=40)
+````
+
+This shows that the series is now stationary. To fit the model, we assume some SARIMA model within the AR(1) neighborhood since the PACF cut off after lag-1. We also include the constant term since we have some traces of trends in the data. Thus, we experiment with different model and compare their AICc values.
+````{r results='hide', echo = FALSE}
+## Initial model has at least one seasonal MA term and one non-seasonal MA term and/or AR term. 
+## We include a constant term since there is a linear trend in raw data
+Arima(xt,order=c(1,0,0),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(0,0,1),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(1,0,1),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(2,0,0),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(0,0,2),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(1,0,1),seasonal=list(order=c(1,1,0),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(1,0,1),seasonal=list(order=c(1,1,1),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(1,0,1),seasonal=list(order=c(0,1,2),period=12), include.drift=TRUE)
+
+Arima(xt,order=c(1,0,1),seasonal=list(order=c(2,1,0),period=12), include.drift=TRUE)
+````
+The model with least AICc value is 
+
+````{r results='hide',  echo = FALSE}
+##Our final model that minimizes AICC
+m1=Arima(xt,order=c(1,0,0),seasonal=list(order=c(0,1,1),period=12), include.drift=TRUE)
+m1
+````
+SARIMA(1,0,0)(0,1,1)12 Model. To test if any of our model parameters can be dropped, we perform a T-test on each of the parameters and compare their respective p-values to our level of significance;
+
+````{r echo = FALSE}
+## T-Test for model coefficients
+## Note that the constant term is statistically significant. therefore it cannot be dropped from the model.
+Tstat = m1$coef/sqrt(diag(m1$var.coef))
+Tstat
+pval = 2*pt(abs(Tstat), df=163, lower.tail = FALSE)
+pval
+````
+
+Since the p-value for each parameter is less than 0.05, we keep them all in our Model. Thus, our final model will be****. 
+
+To check for the adequacy of this model, we performed some diagnostic tests on it. First, we plot the residue to check whether there is a change in variance for our model.
+
+````{r echo = FALSE}
+## model Diagnostics
+r1 = m1$residuals
+plot(r1)
+abline(h=0)
+````
+No particular pattern was observed in the residual plot, so we can say that the equal variance assumption required for model building is satisfied.
+
+Next, we carry out a series of tests to check whether the residuals are White Niose (IID). First we carry out the Ljung-Box Test and obtain the p-value
+
+````{r echo = FALSE}
+## "Ljung-Box" test
+Box.test(r1, lag=40, type="Ljung-Box")
+````
+Since our p-value is greater than 0.05, hence we have that (by Ljung-Box test) the residuals are White Noise (IID). 
+
+To verify this result, we attempt to carry out the
+`````{r echo = FALSE}
+## More WN tests.
+
+## Activate the package
+library("randtests")
+
+## Turning point test
+turning.point.test(r1, "two.sided")
+
+## Difference sign test
+difference.sign.test(r1, "two.sided")
+
+
+## Rank test
+rank.test(r1, "two.sided")
+
+`````
+Finally, we check the normality of this residue; we do this by plotting the QQ-normal plot and the Shapiro-Wilk test. 
+````{r echo = FALSE}
+## normal probability plot and a normality test of residuals
+qqnorm(r1)
+qqline(r1)
+shapiro.test(r1)
+````
+The p-value of the Shapiro-Wilk test is greater than 0.05. Thus, the normal residue assumption is satisfied.
+ 
+# 4.0 Discussion and Results
+
+````{r echo = FALSE}
+## Viewing how well the model fits in terms of forecasting
+plot(xt, col="red")
+lines(fitted(m1), col="green")
+
+## Forecasting next 12 observations
+fcast=forecast(m1,12)
+fcast
+f1
+````
